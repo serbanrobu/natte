@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Natte</title>
+
+  <style>
+    html {
+      background-color: #282B34;
+    }
+
+    pre {
+      font-size: 16px;
+      color: #BBC2CF;
+    }
+
+    a {
+      text-decoration: none;
+      display: block;
+    }
+
+    a.dir {
+      color: #51AFEF;
+      font-weight: bold;
+    }
+
+    a.file {
+      color: #BBC2CF
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <script>
+    const sse = new EventSource(
+      `${location.origin}/sse${location.pathname.substring(5)}`
+    );
+
+    const pre = document.createElement('pre');
+    document.body.appendChild(pre);
+
+    ['file', 'dir'].forEach((type) => {
+      sse.addEventListener(type, (e) => {
+        let a = document.createElement('a');
+        a.href = `${location.pathname}/${e.data}`;
+        a.textContent = e.data;
+        a.classList.add(type);
+        pre.appendChild(a);
+      });
+    });
+
+    sse.onmessage = (e) => {
+      pre.textContent += `${e.data}\n`;
+      scrollTo(0, document.body.scrollHeight)
+    };
+
+    sse.onerror = (e) => {
+      sse.close();
+      pre.children[0]?.focus();
+    };
+
+    sse.onopen = () => (pre.innerHTML = '');
+
+    let focusIndex = 0;
+
+    const setFocusIndex = (idx) => {
+      focusIndex = idx;
+      pre.children[idx]?.focus();
+    };
+
+    let g = false;
+
+    document.onkeydown = (e) => {
+      switch (e.key) {
+        case 'h':
+        case 'ArrowLeft':
+          if (location.pathname == '/root') {
+            return;
+          }
+
+          const pathname = location.pathname;
+          const url = pathname.substring(0, pathname.lastIndexOf('/'));
+          location.replace(url);
+          break;
+        case 'l':
+        case 'ArrowRight':
+          pre.children[focusIndex]?.click();
+          break;
+        case 'j':
+        case 'ArrowDown':
+          setFocusIndex(Math.min(focusIndex + 1, pre.children.length - 1));
+          break;
+        case 'k':
+        case 'ArrowUp':
+          setFocusIndex(Math.max(focusIndex - 1, 0));
+          break;
+        case 'G':
+          setFocusIndex(pre.children.length - 1);
+          break;
+        case 'g':
+          if (!g) {
+            g = true;
+            break;
+          }
+
+          setFocusIndex(0);
+          g = false;
+          break;
+      };
+    };
+  </script>
+</body>
+
+</html>
