@@ -1,15 +1,17 @@
-use async_std::fs;
-use async_std::prelude::*;
+use async_std::{fs, stream};
+use futures::StreamExt;
 use serde::Deserialize;
-use std::io::prelude::*;
-use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 use structopt::StructOpt;
 use tide::utils::async_trait;
 use tide::{log, sse, Middleware, Next, Request, Response, Result, StatusCode};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::select;
 
 /// Agent for serving and tailing files
 #[derive(Debug, StructOpt)]
@@ -81,9 +83,19 @@ async fn main() -> Result<()> {
             let child = cmd.spawn()?;
             let stdout = child.stdout.unwrap();
             let mut lines = BufReader::new(stdout).lines();
+            let mut interval = stream::interval(Duration::from_secs(1));
 
-            while let Some(line) = lines.next().transpose()? {
-                sender.send("", line, None).await?;
+            loop {
+                select! {
+                    _ = interval.next() => {
+                        sender.send("ping", "", None).await?;
+                    },
+                    res = lines.next_line() => {
+                        if let Some(line) = res? {
+                            sender.send("", line, None).await?;
+                        }
+                    },
+                }
             }
         } else {
             let mut entries = fs::read_dir(path).await?;
